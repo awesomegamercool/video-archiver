@@ -188,9 +188,7 @@ def run_apify(video_url):
             "Apify Actor did not return a run."
         )
 
-    dataset_id = run.get(
-        "defaultDatasetId"
-    )
+    dataset_id = run.default_dataset_id
 
     if not dataset_id:
         raise RuntimeError(
