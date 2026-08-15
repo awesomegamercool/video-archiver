@@ -1,9 +1,10 @@
 name: Archive TikTok
 
 on:
-  schedule:
-    - cron: "2-57/5 * * * *"
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -45,7 +46,14 @@ jobs:
         run: |
           printf '%s' "${{ secrets.TIKTOK_COOKIES }}" > cookies.txt
 
-      - name: Check profile and archive new public posts
+      - name: Check profile repeatedly
         env:
           TIKTOK_COOKIES_FILE: cookies.txt
-        run: python watcher.py
+        run: |
+          for i in {1..24}; do
+            echo "Check $i of 24"
+            python watcher.py
+            if [ "$i" -lt 24 ]; then
+              sleep 300
+            fi
+          done
