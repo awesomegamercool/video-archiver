@@ -16,6 +16,7 @@ jobs:
   archive:
     runs-on: ubuntu-latest
     timeout-minutes: 8
+
     env:
       TIKTOK_USERNAME: ${{ secrets.TIKTOK_USERNAME }}
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
@@ -24,9 +25,11 @@ jobs:
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -36,5 +39,11 @@ jobs:
           python -m pip install --upgrade --pre "yt-dlp[default,curl-cffi]"
           python -m pip install -r requirements.txt
 
+      - name: Create TikTok cookies file
+        run: |
+          printf '%s' "${{ secrets.TIKTOK_COOKIES }}" > cookies.txt
+
       - name: Check profile and archive new public posts
+        env:
+          TIKTOK_COOKIES_FILE: cookies.txt
         run: python watcher.py
