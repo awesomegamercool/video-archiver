@@ -91,7 +91,8 @@ def save_state(video_ids):
 
 def get_latest_profile_videos():
     profile_url = (
-        f"https://www.tiktok.com/@{USERNAME}"
+        "tiktokuser:"
+        "MS4wLjABAAAAsztHFGG5N8lP401-f1cbi6CmRzoKUI4fCd1G8l6BKCSHI9Y32aciUVWkAWf5lJCl"
     )
 
     cmd = [
