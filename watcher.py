@@ -1,157 +1,326 @@
+import json
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 import boto3
+import requests
+from apify_client import ApifyClient
 from botocore.exceptions import ClientError
 
+
 USERNAME = os.environ["TIKTOK_USERNAME"].lstrip("@")
-BUCKET = os.environ["R2_BUCKET"]
-ACCOUNT_ID = os.environ["R2_ACCOUNT_ID"]
-ACCESS_KEY = os.environ["R2_ACCESS_KEY_ID"]
-SECRET_KEY = os.environ["R2_SECRET_ACCESS_KEY"]
+
+R2_ACCOUNT_ID = os.environ["R2_ACCOUNT_ID"]
+R2_BUCKET = os.environ["R2_BUCKET"]
+R2_ACCESS_KEY_ID = os.environ["R2_ACCESS_KEY_ID"]
+R2_SECRET_ACCESS_KEY = os.environ["R2_SECRET_ACCESS_KEY"]
+
+APIFY_TOKEN = os.environ["APIFY_TOKEN"]
+APIFY_ACTOR = os.environ.get(
+    "APIFY_ACTOR",
+    "api-ninja/tiktok-video-downloader",
+)
+
 COOKIES_FILE = os.environ.get("TIKTOK_COOKIES_FILE")
 
-R2_ENDPOINT = f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com"
+STATE_KEY = "state/videos.json"
 
-STATE_KEY = "state/archive.txt"
-DOWNLOAD_DIR = Path("downloads")
-ARCHIVE_FILE = Path("archive.txt")
+R2_ENDPOINT = (
+    f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+)
 
 s3 = boto3.client(
     "s3",
     endpoint_url=R2_ENDPOINT,
-    aws_access_key_id=ACCESS_KEY,
-    aws_secret_access_key=SECRET_KEY,
+    aws_access_key_id=R2_ACCESS_KEY_ID,
+    aws_secret_access_key=R2_SECRET_ACCESS_KEY,
     region_name="auto",
 )
 
+apify = ApifyClient(APIFY_TOKEN)
 
-def restore_archive():
+
+def load_state():
     try:
-        s3.download_file(BUCKET, STATE_KEY, str(ARCHIVE_FILE))
-        print("Restored download archive.")
+        response = s3.get_object(
+            Bucket=R2_BUCKET,
+            Key=STATE_KEY,
+        )
+
+        data = json.loads(
+            response["Body"].read().decode("utf-8")
+        )
+
+        return set(data.get("video_ids", []))
+
     except ClientError as exc:
-        code = exc.response.get("Error", {}).get("Code", "")
-        if code in ("404", "NoSuchKey"):
-            ARCHIVE_FILE.write_text("", encoding="utf-8")
-            print("No previous archive state found; starting fresh.")
-        else:
-            raise
+        code = exc.response.get(
+            "Error", {}
+        ).get("Code", "")
+
+        if code in (
+            "NoSuchKey",
+            "404",
+            "NoSuchObject",
+        ):
+            return set()
+
+        raise
 
 
-def run_ytdlp():
-    DOWNLOAD_DIR.mkdir(exist_ok=True)
+def save_state(video_ids):
+    body = json.dumps(
+        {
+            "username": USERNAME,
+            "video_ids": sorted(video_ids),
+        },
+        indent=2,
+    ).encode("utf-8")
 
-    url = f"https://www.tiktok.com/@{USERNAME}"
+    s3.put_object(
+        Bucket=R2_BUCKET,
+        Key=STATE_KEY,
+        Body=body,
+        ContentType="application/json",
+    )
+
+    print("Saved state.")
+
+
+def get_latest_profile_videos():
+    profile_url = (
+        f"https://www.tiktok.com/@{USERNAME}"
+    )
 
     cmd = [
         sys.executable,
         "-m",
         "yt_dlp",
-        "--impersonate",
-        "chrome",
-        "--no-progress",
-        "--ignore-errors",
-        "--download-archive",
-        str(ARCHIVE_FILE),
-        "--write-info-json",
-        "--write-thumbnail",
-        "--restrict-filenames",
+        "--flat-playlist",
+        "--dump-single-json",
         "--playlist-end",
         "10",
-        "--output",
-        str(DOWNLOAD_DIR / "%(upload_date|NA)s_%(id)s.%(ext)s"),
+        "--no-warnings",
     ]
 
-    if COOKIES_FILE:
-        cmd.extend([
-            "--cookies",
-            COOKIES_FILE,
-        ])
-
-    cmd.append(url)
-
-    print(f"Checking TikTok profile @{USERNAME}...")
-    result = subprocess.run(cmd, check=False)
-
-    if result.returncode != 0:
-        print(f"yt-dlp exited with status {result.returncode}.")
-
-    return result.returncode
-
-
-def upload_new_files():
-    uploaded = 0
-
-    for path in DOWNLOAD_DIR.rglob("*"):
-        if not path.is_file():
-            continue
-
-        key = f"media/{path.name}"
-
-        extra = {}
-
-        ext = path.suffix.lower()
-
-        if ext == ".mp4":
-            extra["ContentType"] = "video/mp4"
-        elif ext == ".webm":
-            extra["ContentType"] = "video/webm"
-        elif ext == ".mov":
-            extra["ContentType"] = "video/quicktime"
-        elif ext in {".jpg", ".jpeg"}:
-            extra["ContentType"] = "image/jpeg"
-        elif ext == ".png":
-            extra["ContentType"] = "image/png"
-        elif ext == ".webp":
-            extra["ContentType"] = "image/webp"
-        elif ext == ".json":
-            extra["ContentType"] = "application/json"
-
-        if extra:
-            s3.upload_file(
-                str(path),
-                BUCKET,
-                key,
-                ExtraArgs=extra,
-            )
-        else:
-            s3.upload_file(
-                str(path),
-                BUCKET,
-                key,
-            )
-
-        print(f"Uploaded: {key}")
-        uploaded += 1
-
-    return uploaded
-
-
-def persist_archive():
-    if ARCHIVE_FILE.exists():
-        s3.upload_file(
-            str(ARCHIVE_FILE),
-            BUCKET,
-            STATE_KEY,
-            ExtraArgs={"ContentType": "text/plain"},
+    if COOKIES_FILE and Path(COOKIES_FILE).exists():
+        cmd.extend(
+            [
+                "--cookies",
+                COOKIES_FILE,
+            ]
         )
 
-        print("Saved archive state.")
+    cmd.append(profile_url)
+
+    print(
+        f"Checking @{USERNAME} for latest posts..."
+    )
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        print("Profile check failed:")
+        print(result.stderr)
+        return []
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        print("Could not parse profile response.")
+        print(result.stdout[:1000])
+        return []
+
+    videos = []
+
+    for entry in data.get("entries", []):
+        if not entry:
+            continue
+
+        video_id = str(entry.get("id", "")).strip()
+
+        if not video_id:
+            continue
+
+        url = (
+            f"https://www.tiktok.com/"
+            f"@{USERNAME}/video/{video_id}"
+        )
+
+        videos.append(
+            {
+                "id": video_id,
+                "url": url,
+            }
+        )
+
+    print(
+        f"Found {len(videos)} recent video IDs."
+    )
+
+    return videos
+
+
+def run_apify(video_url):
+    print(
+        f"Sending new video to Apify: "
+        f"{video_url}"
+    )
+
+    run = apify.actor(
+        APIFY_ACTOR
+    ).call(
+        run_input={
+            "videoUrls": [video_url],
+            "ttl": "none",
+        }
+    )
+
+    if not run:
+        raise RuntimeError(
+            "Apify Actor did not return a run."
+        )
+
+    dataset_id = run.get(
+        "defaultDatasetId"
+    )
+
+    if not dataset_id:
+        raise RuntimeError(
+            "Apify run did not return a dataset."
+        )
+
+    items = list(
+        apify.dataset(
+            dataset_id
+        ).iterate_items()
+    )
+
+    if not items:
+        raise RuntimeError(
+            "Apify returned no video result."
+        )
+
+    return items[0]
+
+
+def download_and_upload(video):
+    video_id = video["id"]
+    video_url = video["url"]
+
+    result = run_apify(video_url)
+
+    play_url = result.get("play")
+
+    if not play_url:
+        raise RuntimeError(
+            f"Apify returned no play URL "
+            f"for {video_id}"
+        )
+
+    print(
+        f"Downloading MP4 for {video_id}..."
+    )
+
+    response = requests.get(
+        play_url,
+        stream=True,
+        timeout=120,
+    )
+
+    response.raise_for_status()
+
+    key = (
+        f"media/{video_id}.mp4"
+    )
+
+    print(
+        f"Uploading {key} to R2..."
+    )
+
+    s3.upload_fileobj(
+        response.raw,
+        R2_BUCKET,
+        key,
+        ExtraArgs={
+            "ContentType": "video/mp4",
+        },
+    )
+
+    metadata = {
+        "video_id": video_id,
+        "tiktok_url": video_url,
+        "apify_result": result,
+    }
+
+    s3.put_object(
+        Bucket=R2_BUCKET,
+        Key=f"media/{video_id}.json",
+        Body=json.dumps(
+            metadata,
+            indent=2,
+            default=str,
+        ).encode("utf-8"),
+        ContentType="application/json",
+    )
+
+    print(
+        f"Archived video {video_id}."
+    )
 
 
 def main():
-    restore_archive()
+    archived = load_state()
 
-    run_ytdlp()
+    recent = get_latest_profile_videos()
 
-    count = upload_new_files()
+    if not recent:
+        print(
+            "No videos detected; doing nothing."
+        )
+        return
 
-    persist_archive()
+    new_videos = [
+        video
+        for video in recent
+        if video["id"] not in archived
+    ]
 
-    print(f"Done. Uploaded {count} new file(s).")
+    if not new_videos:
+        print(
+            "No new videos. Nothing to download."
+        )
+        return
+
+    print(
+        f"{len(new_videos)} new video(s) found."
+    )
+
+    # Process oldest → newest
+    # on the first catch-up run.
+    for video in reversed(new_videos):
+        try:
+            download_and_upload(video)
+
+            archived.add(video["id"])
+
+            # Save after every successful video so
+            # a later failure cannot lose progress.
+            save_state(archived)
+
+        except Exception as exc:
+            print(
+                f"FAILED {video['id']}: {exc}"
+            )
+
+    print("Finished.")
 
 
 if __name__ == "__main__":
