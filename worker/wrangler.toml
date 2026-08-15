@@ -1,0 +1,7 @@
+name = "private-tiktok-archive"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+[[r2_buckets]]
+binding = "ARCHIVE"
+bucket_name = "REPLACE_WITH_YOUR_BUCKET_NAME"
