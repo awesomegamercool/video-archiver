@@ -215,7 +215,7 @@ def download_and_upload(video):
 
     result = run_apify(video_url)
 
-    play_url = result.get("play")
+    play_url = result.get("data.hdplay") or result.get("data.play")
 
     if not play_url:
         raise RuntimeError(
