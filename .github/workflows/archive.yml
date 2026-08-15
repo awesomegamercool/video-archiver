@@ -23,6 +23,8 @@ jobs:
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+      APIFY_ACTOR: ${{ secrets.APIFY_ACTOR }}
 
     steps:
       - name: Checkout repository
