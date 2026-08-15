@@ -216,7 +216,16 @@ def download_and_upload(video):
 
     result = run_apify(video_url)
 
-    play_url = result.get("data.hdplay") or result.get("data.play")
+    data = result.get("data", {})
+
+    play_url = (
+        result.get("data.hdplay")
+        or result.get("data.play")
+        or data.get("hdplay")
+        or data.get("play")
+    )
+    
+    print("Apify result keys:", list(result.keys()))
 
     if not play_url:
         raise RuntimeError(
