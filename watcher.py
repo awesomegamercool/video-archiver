@@ -50,6 +50,8 @@ def run_ytdlp():
         sys.executable,
         "-m",
         "yt_dlp",
+        "--impersonate",
+        "chrome",
         "--no-progress",
         "--ignore-errors",
         "--download-archive",
