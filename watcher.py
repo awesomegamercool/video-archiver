@@ -327,6 +327,11 @@ def main():
             print(
                 f"FAILED {video['id']}: {exc}"
             )
+        
+            # Mark unresolved old posts as seen so they don't consume
+            # Apify usage every 5 minutes forever.
+            archived.add(video["id"])
+            save_state(archived)
 
     print("Finished.")
 
