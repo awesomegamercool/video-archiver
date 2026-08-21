@@ -17,8 +17,6 @@ R2_BUCKET = os.environ["R2_BUCKET"]
 R2_ACCESS_KEY_ID = os.environ["R2_ACCESS_KEY_ID"]
 R2_SECRET_ACCESS_KEY = os.environ["R2_SECRET_ACCESS_KEY"]
 
-nonono = "2"
-
 APIFY_TOKEN = os.environ["APIFY_TOKEN"]
 APIFY_ACTOR = os.environ.get(
     "APIFY_ACTOR",
