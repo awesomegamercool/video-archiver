@@ -1,8 +1,5 @@
 import json
 import os
-import subprocess
-import sys
-from pathlib import Path
 
 import boto3
 import requests
@@ -18,12 +15,18 @@ R2_ACCESS_KEY_ID = os.environ["R2_ACCESS_KEY_ID"]
 R2_SECRET_ACCESS_KEY = os.environ["R2_SECRET_ACCESS_KEY"]
 
 APIFY_TOKEN = os.environ["APIFY_TOKEN"]
-APIFY_ACTOR = os.environ.get(
-    "APIFY_ACTOR",
-    "api-ninja/tiktok-video-downloader",
+
+# Actor used to discover videos from the profile.
+APIFY_PROFILE_ACTOR = os.environ.get(
+    "APIFY_PROFILE_ACTOR",
+    "api-ninja/tiktok-profile-scraper",
 )
 
-COOKIES_FILE = os.environ.get("TIKTOK_COOKIES_FILE")
+# Actor used to download an individual video.
+APIFY_DOWNLOADER_ACTOR = os.environ.get(
+    "APIFY_DOWNLOADER_ACTOR",
+    "api-ninja/tiktok-video-downloader",
+)
 
 STATE_KEY = "state/videos.json"
 
@@ -90,68 +93,67 @@ def save_state(video_ids):
 
 
 def get_latest_profile_videos():
-    profile_url = (
-        "tiktokuser:"
-        "MS4wLjABAAAAsztHFGG5N8lP401-f1cbi6CmRzoKUI4fCd1G8l6BKCSHI9Y32aciUVWkAWf5lJCl"
-    )
+    """
+    Use Apify to discover the latest videos from the TikTok profile.
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "yt_dlp",
-        "--flat-playlist",
-        "--dump-single-json",
-        "--playlist-end",
-        "10",
-        "--no-warnings",
-    ]
+    This avoids yt-dlp's TikTok profile extractor, which is currently
+    unreliable because TikTok keeps changing its profile/web responses.
+    """
 
-    if COOKIES_FILE and Path(COOKIES_FILE).exists():
-        cmd.extend(
-            [
-                "--cookies",
-                COOKIES_FILE,
-            ]
-        )
-
-    cmd.append(profile_url)
+    profile_url = f"https://www.tiktok.com/@{USERNAME}"
 
     print(
         f"Checking @{USERNAME} for latest posts..."
     )
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        check=False,
+    print(
+        f"Using Apify profile actor: "
+        f"{APIFY_PROFILE_ACTOR}"
     )
 
-    if result.returncode != 0:
-        print("Profile check failed:")
-        print(result.stderr)
-        return []
+    run = apify.actor(
+        APIFY_PROFILE_ACTOR
+    ).call(
+        run_input={
+            "userUrls": [profile_url],
+            "scrapeType": "videos",
+            "maxResults": 10,
+            "scrapeAllResults": False,
+        }
+    )
 
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        print("Could not parse profile response.")
-        print(result.stdout[:1000])
-        return []
+    if not run:
+        raise RuntimeError(
+            "Apify profile scraper did not return a run."
+        )
+
+    dataset_id = run.default_dataset_id
+
+    if not dataset_id:
+        raise RuntimeError(
+            "Apify profile scraper did not return a dataset."
+        )
+
+    items = list(
+        apify.dataset(
+            dataset_id
+        ).iterate_items()
+    )
 
     videos = []
 
-    for entry in data.get("entries", []):
-        if not entry:
-            continue
-
-        video_id = str(entry.get("id", "")).strip()
+    for item in items:
+        video_id = str(
+            item.get("video_id", "")
+        ).strip()
 
         if not video_id:
             continue
 
         url = (
-            f"https://www.tiktok.com/"
+            item.get("url")
+            or item.get("video_url")
+            or f"https://www.tiktok.com/"
             f"@{USERNAME}/video/{video_id}"
         )
 
@@ -176,7 +178,7 @@ def run_apify(video_url):
     )
 
     run = apify.actor(
-        APIFY_ACTOR
+        APIFY_DOWNLOADER_ACTOR
     ).call(
         run_input={
             "videoUrls": [video_url],
@@ -224,8 +226,11 @@ def download_and_upload(video):
         or data.get("hdplay")
         or data.get("play")
     )
-    
-    print("Apify result keys:", list(result.keys()))
+
+    print(
+        "Apify result keys:",
+        list(result.keys()),
+    )
 
     if not play_url:
         raise RuntimeError(
@@ -311,27 +316,26 @@ def main():
         f"{len(new_videos)} new video(s) found."
     )
 
-    # Process oldest → newest
-    # on the first catch-up run.
+    # Process oldest → newest.
     for video in reversed(new_videos):
         try:
             download_and_upload(video)
 
             archived.add(video["id"])
 
-            # Save after every successful video so
-            # a later failure cannot lose progress.
+            # Only mark a video as archived AFTER
+            # the download and upload succeeded.
             save_state(archived)
 
         except Exception as exc:
             print(
                 f"FAILED {video['id']}: {exc}"
             )
-        
-            # Mark unresolved old posts as seen so they don't consume
-            # Apify usage every 5 minutes forever.
-            archived.add(video["id"])
-            save_state(archived)
+
+            # DO NOT mark failed videos as archived.
+            #
+            # The next scheduled run will retry them.
+            continue
 
     print("Finished.")
 
