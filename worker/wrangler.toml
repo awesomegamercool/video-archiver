@@ -1,7 +1,28 @@
-name = "private-tiktok-archive"
+name = "tiktok-archive"
+
 main = "src/index.js"
-compatibility_date = "2026-08-01"
+
+compatibility_date = "2026-09-07"
+
 
 [[r2_buckets]]
 binding = "ARCHIVE"
-bucket_name = "REPLACE_WITH_YOUR_BUCKET_NAME"
+bucket_name = "YOUR_EXISTING_R2_BUCKET"
+
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tiktok-archive"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+
+[[workflows]]
+name = "tiktok-archive-workflow"
+
+binding = "ARCHIVE_WORKFLOW"
+
+class_name = "ArchiveWorkflow"
+
+schedules = [
+  "*/5 * * * *"
+]
