@@ -538,6 +538,10 @@ export default {
       )
     );
   },
+
+  async scheduled(event, env, ctx) {
+      await env.ARCHIVE_WORKFLOW.create();
+  },
 };
 
 
