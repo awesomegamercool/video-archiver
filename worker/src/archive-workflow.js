@@ -122,6 +122,7 @@ async function discoverDirectly(
   }
 
   const videos = new Map();
+  const now = Math.floor(Date.now() / 1000);
 
   function visit(value) {
     if (!value) {
@@ -149,6 +150,16 @@ async function discoverDirectly(
       value.aweme_id ??
       value.item_id ??
       value.video_id;
+
+    const isVideoObject =
+      Boolean(
+        value.webVideoUrl ??
+        value.web_video_url
+      );
+
+    if (!isVideoObject) {
+      return;
+    }
 
     const numericId =
       typeof id === "string" &&
@@ -236,16 +247,35 @@ async function discoverWithApify(
     "Direct TikTok discovery failed; using Apify fallback."
   );
 
-  return await runApify(
-    env.APIFY_TOKEN,
-    "api-ninja/tiktok-profile-scraper",
-    {
-      userUrls: [profile],
-      scrapeType: "videos",
-      maxResults: 50,
-      scrapeAllResults: false,
-    }
-  );
+  const results =
+    await runApify(
+      env.APIFY_TOKEN,
+      "api-ninja/tiktok-profile-scraper",
+      {
+        userUrls: [profile],
+        scrapeType: "videos",
+        maxResults: 50,
+        scrapeAllResults: false,
+      }
+    );
+
+  return results
+    .map((item) => {
+      const id =
+        item.video_id ??
+        item.aweme_id;
+
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id: String(id),
+        url:
+          `https://www.tiktok.com/@${env.TIKTOK_USERNAME}/video/${id}`,
+      };
+    })
+    .filter(Boolean);
 }
 
 
@@ -392,46 +422,69 @@ async function downloadVideo(
   const results =
     await runApify(
       env.APIFY_TOKEN,
-      APIFY_ACTOR,
+      "dltik/tiktok-video-downloader",
       {
-        postUrls: [
+        urls: [
           video.tiktok_url,
         ],
 
-        resultsPerPage: 1,
+        saveVideoFiles: true,
 
-        shouldDownloadVideos: true,
+        videoQuality: "download",
+
+        maxPerProfile: 10,
+
+        proxyConfiguration: {
+          useApifyProxy: false,
+        },
       }
     );
+
+  console.log(
+    "Apify video results:",
+    JSON.stringify(results).slice(0, 30000)
+  );
 
   const item =
     results.find(
       (x) =>
+        x.type === "video" &&
         String(
-          x.id ?? ""
+          x.video_id ?? ""
         ) === String(video.id)
-    ) ?? results[0];
+    ) ??
+    results.find(
+      (x) =>
+        x.type === "video"
+    );
 
   if (!item) {
     throw new Error(
-      "Apify returned no result for video."
+      "Apify returned no downloadable video."
     );
   }
 
   const downloadUrl =
-    item.temporaryDownloadUrl ??
-    item.downloadUrl ??
-    item.play ??
+    item.file_url ??
+    item.download_url ??
     item.play_url;
 
   if (!downloadUrl) {
     throw new Error(
-      "Apify returned no temporary download URL."
+      "Apify returned no download URL."
     );
   }
 
   const response =
-    await fetch(downloadUrl);
+    await fetch(downloadUrl, {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+
+        "referer":
+          "https://www.tiktok.com/",
+      },
+    });
 
   if (!response.ok) {
     throw new Error(
@@ -450,7 +503,7 @@ async function downloadVideo(
 
   await env.ARCHIVE.put(
     key,
-    response.body,
+    await response.arrayBuffer(),
     {
       httpMetadata: {
         contentType:
