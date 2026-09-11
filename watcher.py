@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import boto3
 import requests
 import yt_dlp
+from yt_dlp.networking.impersonate import ImpersonateTarget
 from botocore.exceptions import ClientError
 
 
@@ -113,6 +114,12 @@ def discover_profile():
         "no_warnings": False,
         "extract_flat": True,
         "skip_download": True,
+        "impersonate": ImpersonateTarget(
+            "chrome",
+            "136",
+            "macos",
+            "15",
+        ),
     }
 
     last_error = None
