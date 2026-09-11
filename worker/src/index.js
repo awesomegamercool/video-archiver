@@ -540,7 +540,32 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-      await env.ARCHIVE_WORKFLOW.create();
+      const response = await fetch(
+          "https://api.github.com/repos/awesomegamercool/video-archiver/dispatches",
+          {
+              method: "POST",
+              headers: {
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+                  "X-GitHub-Api-Version": "2026-03-10",
+                  "Content-Type": "application/json",
+                  "User-Agent": "tiktok-archive-worker",
+              },
+              body: JSON.stringify({
+                  event_type: "archive_tiktok",
+              }),
+          }
+      );
+
+      if (!response.ok) {
+          const text = await response.text();
+
+          throw new Error(
+              `GitHub dispatch failed: ${response.status} ${text}`
+          );
+      }
+
+      console.log("GitHub archive workflow dispatched.");
   },
 };
 
