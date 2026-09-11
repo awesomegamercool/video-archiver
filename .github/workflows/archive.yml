@@ -2,7 +2,6 @@ name: Archive TikTok
 
 on:
   workflow_dispatch:
-
   schedule:
     - cron: "*/5 * * * *"
 
@@ -20,16 +19,10 @@ jobs:
 
     env:
       TIKTOK_USERNAME: ${{ secrets.TIKTOK_USERNAME }}
-
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-
-      APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
-
-      APIFY_PROFILE_ACTOR: ${{ secrets.APIFY_PROFILE_ACTOR }}
-      APIFY_DOWNLOADER_ACTOR: ${{ secrets.APIFY_DOWNLOADER_ACTOR }}
 
     steps:
       - name: Checkout repository
@@ -40,11 +33,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v3
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Check for new TikToks
+      - name: Archive TikToks
         run: |
           python watcher.py
