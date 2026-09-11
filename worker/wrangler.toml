@@ -22,7 +22,7 @@ binding = "ARCHIVE_WORKFLOW"
 class_name = "ArchiveWorkflow"
 
 [triggers]
-crons = ["*/5 * * * *"]
+crons = []
 
 [secrets]
 required = [
