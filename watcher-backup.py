@@ -115,35 +115,11 @@ def discover_profile():
         "skip_download": True,
     }
 
-    last_error = None
-    info = None
-
-    for attempt in range(3):
-        try:
-            print(
-                f"Profile discovery attempt "
-                f"{attempt + 1}/3..."
-            )
-
-            with yt_dlp.YoutubeDL(options) as ydl:
-                info = ydl.extract_info(
-                    profile_url,
-                    download=False,
-                )
-
-            last_error = None
-            break
-
-        except Exception as exc:
-            last_error = exc
-
-            print(
-                f"Profile discovery attempt "
-                f"{attempt + 1}/3 failed: {exc}"
-            )
-
-    if last_error is not None:
-        raise last_error
+    with yt_dlp.YoutubeDL(options) as ydl:
+        info = ydl.extract_info(
+            profile_url,
+            download=False,
+        )
 
     entries = info.get("entries") or []
 
@@ -242,166 +218,108 @@ def download_video(video):
     video_id = video["id"]
     video_url = video["url"]
 
-    print(f"Downloading video {video_id}...")
-
-    output_template = os.path.join(
-        tempfile.gettempdir(),
-        f"tiktok_{video_id}.%(ext)s",
+    print(
+        f"Downloading video {video_id}..."
     )
 
-    options = {
-        "outtmpl": output_template,
-        "format": "bestvideo*+bestaudio/best",
-        "merge_output_format": "mp4",
-        "noplaylist": True,
-        "quiet": False,
-        "no_warnings": False,
-    }
-
-    last_error = None
-
-    # First try yt-dlp.
-    for attempt in range(3):
-        try:
-            print(
-                f"yt-dlp attempt {attempt + 1}/3 "
-                f"for {video_id}..."
-            )
-
-            with yt_dlp.YoutubeDL(options) as ydl:
-                ydl.download([video_url])
-
-            last_error = None
-            break
-
-        except Exception as exc:
-            last_error = exc
-            print(
-                f"yt-dlp attempt {attempt + 1}/3 failed: "
-                f"{exc}"
-            )
-
-    # If yt-dlp failed, fall back to TikWM.
-    if last_error is not None:
-        print(
-            f"yt-dlp failed for {video_id}. "
-            f"Trying TikWM fallback..."
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output_template = os.path.join(
+            temp_dir,
+            f"{video_id}.%(ext)s",
         )
 
-        response = requests.post(
-            "https://www.tikwm.com/api/",
-            data={"url": video_url},
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 "
-                    "(Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) "
-                    "Chrome/140 Safari/537.36"
-                ),
-            },
-            timeout=60,
-        )
-        response.raise_for_status()
+        options = {
+            "outtmpl": output_template,
+            "format": "bestvideo*+bestaudio/best",
+            "merge_output_format": "mp4",
+            "noplaylist": True,
+            "quiet": False,
+            "no_warnings": False,
+        }
 
-        result = response.json()
+        last_error = None
 
-        if result.get("code") != 0:
-            raise RuntimeError(
-                "TikWM returned an error: "
-                + str(result.get("msg"))
-            )
-
-        data = result.get("data") or {}
-        play_url = data.get("play")
-
-        if not play_url:
-            raise RuntimeError(
-                "TikWM did not return a video play URL."
-            )
-
-        print(
-            f"TikWM resolved {video_id}. "
-            f"Downloading direct video..."
-        )
-
-        media_response = requests.get(
-            play_url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 "
-                    "(Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) "
-                    "Chrome/140 Safari/537.36"
-                ),
-            },
-            timeout=120,
-        )
-        media_response.raise_for_status()
-
-        with tempfile.NamedTemporaryFile(
-            suffix=".mp4",
-            delete=False,
-        ) as temp_file:
-            temp_file.write(media_response.content)
-            media_path = temp_file.name
-
-        print(
-            f"TikWM downloaded "
-            f"{len(media_response.content) / 1024 / 1024:.2f} MiB."
-        )
-
-    else:
-        media_path = None
-
-        for filename in os.listdir(tempfile.gettempdir()):
-            if filename.startswith(f"tiktok_{video_id}."):
-                candidate = os.path.join(
-                    tempfile.gettempdir(),
-                    filename,
+        for attempt in range(3):
+            try:
+                print(
+                    f"yt-dlp attempt {attempt + 1}/3 "
+                    f"for {video_id}..."
                 )
 
-                if os.path.isfile(candidate):
-                    media_path = candidate
-                    break
+                with yt_dlp.YoutubeDL(options) as ydl:
+                    ydl.download([video_url])
 
-        if media_path is None:
+                last_error = None
+                break
+
+            except Exception as exc:
+                last_error = exc
+
+                print(
+                    f"yt-dlp attempt {attempt + 1}/3 failed: "
+                    f"{exc}"
+                )
+
+        if last_error is not None:
+            raise last_error
+
+        candidates = [
+            os.path.join(
+                temp_dir,
+                name,
+            )
+            for name in os.listdir(temp_dir)
+        ]
+
+        media_files = [
+            path
+            for path in candidates
+            if os.path.isfile(path)
+            and os.path.splitext(path)[1].lower()
+            in (
+                ".mp4",
+                ".webm",
+                ".mkv",
+                ".mov",
+            )
+        ]
+
+        if not media_files:
             raise RuntimeError(
-                f"Could not find downloaded media for {video_id}."
+                f"yt-dlp downloaded no video file for {video_id}"
             )
 
-    with open(media_path, "rb") as file:
-        s3.put_object(
-            Bucket=R2_BUCKET,
-            Key=f"media/{video_id}.mp4",
-            Body=file,
-            ContentType="video/mp4",
+        media_path = media_files[0]
+
+        key = f"media/{video_id}.mp4"
+
+        print(
+            f"Uploading {key} to R2..."
         )
 
-    metadata = {
-        "id": video_id,
-        "url": video_url,
-        "type": "video",
-        "archived_at": datetime.now().isoformat(),
-    }
+        with open(media_path, "rb") as file:
+            s3.upload_fileobj(
+                file,
+                R2_BUCKET,
+                key,
+                ExtraArgs={
+                    "ContentType": "video/mp4",
+                },
+            )
 
-    s3.put_object(
-        Bucket=R2_BUCKET,
-        Key=f"metadata/{video_id}.json",
-        Body=json.dumps(
-            metadata,
-            indent=2,
-        ).encode("utf-8"),
-        ContentType="application/json",
+    save_metadata(
+        video,
+        {
+            "type": "video",
+            "video_id": video_id,
+            "tiktok_url": video_url,
+            "archived_at": now_iso(),
+        },
     )
 
-    try:
-        os.remove(media_path)
-    except OSError:
-        pass
-
-    print(f"Archived video {video_id}.")
+    print(
+        f"Archived video {video_id}."
+    )
 
 
 def download_photo_post(video):
