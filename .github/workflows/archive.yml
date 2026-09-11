@@ -2,6 +2,8 @@ name: Archive TikTok
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [archive_tiktok]
 
 permissions:
   contents: read
