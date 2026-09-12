@@ -292,77 +292,9 @@ def download_video(video):
             )
 
     # If yt-dlp failed, fall back to TikWM.
-    if last_error is not None:
-        print(
-            f"yt-dlp failed for {video_id}. "
-            f"Trying TikWM fallback..."
-        )
+        if last_error is not None:
+            raise last_error
 
-        response = requests.post(
-            "https://www.tikwm.com/api/",
-            data={"url": video_url},
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 "
-                    "(Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) "
-                    "Chrome/140 Safari/537.36"
-                ),
-            },
-            timeout=60,
-        )
-        response.raise_for_status()
-
-        result = response.json()
-
-        if result.get("code") != 0:
-            raise RuntimeError(
-                "TikWM returned an error: "
-                + str(result.get("msg"))
-            )
-
-        data = result.get("data") or {}
-        play_url = data.get("play")
-
-        if not play_url:
-            raise RuntimeError(
-                "TikWM did not return a video play URL."
-            )
-
-        print(
-            f"TikWM resolved {video_id}. "
-            f"Downloading direct video..."
-        )
-
-        media_response = requests.get(
-            play_url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 "
-                    "(Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) "
-                    "Chrome/140 Safari/537.36"
-                ),
-            },
-            timeout=120,
-        )
-        media_response.raise_for_status()
-
-        with tempfile.NamedTemporaryFile(
-            suffix=".mp4",
-            delete=False,
-        ) as temp_file:
-            temp_file.write(media_response.content)
-            media_path = temp_file.name
-
-        print(
-            f"TikWM downloaded "
-            f"{len(media_response.content) / 1024 / 1024:.2f} MiB."
-        )
-
-    else:
         media_path = None
 
         for filename in os.listdir(tempfile.gettempdir()):
@@ -535,10 +467,27 @@ def save_metadata(video, metadata):
 
 
 def archive_video(video):
+    try:
+        download_video(video)
+        return
+    except Exception as video_error:
+        print(
+            f"yt-dlp could not download {video['id']} "
+            f"as a video: {video_error}"
+        )
+
+    print(
+        f"Checking {video['id']} for photo/slideshow..."
+    )
+
     if is_photo_post(video["url"]):
         download_photo_post(video)
-    else:
-        download_video(video)
+        return
+
+    raise RuntimeError(
+        f"Could not archive {video['id']} "
+        f"as either a video or photo post."
+    )
 
 
 def main():
