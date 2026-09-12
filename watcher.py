@@ -16,6 +16,7 @@ R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")
 R2_BUCKET = os.environ.get("R2_BUCKET")
 R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID")
 R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY")
+TIKTOK_COOKIES_FILE = os.environ.get("TIKTOK_COOKIES_FILE")
 
 STATE_KEY = "state/videos.json"
 
@@ -120,6 +121,7 @@ def discover_profile():
             "macos",
             "15",
         ),
+        "cookiefile": TIKTOK_COOKIES_FILE,
     }
 
     last_error = None
@@ -263,6 +265,7 @@ def download_video(video):
         "noplaylist": True,
         "quiet": False,
         "no_warnings": False,
+        "cookiefile": TIKTOK_COOKIES_FILE,
     }
 
     last_error = None

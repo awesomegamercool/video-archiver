@@ -337,18 +337,91 @@ function galleryPage(items) {
   const photoCards = Array.from(
     photoGroups.entries()
   ).map(([postId, group]) => {
-    const first = group[0];
+    const totalPhotoBytes = group.reduce(
+      (sum, x) => sum + (x.size || 0),
+      0
+    );
 
-    return `
-      <article class="media-card">
-        <div class="media-preview photo-preview">
+    const photoSlides = group.map(
+      (photo, index) => `
+        <div
+          class="photo-slide"
+          data-index="${index}"
+        >
           <img
-            src="/file/${encodeURIComponent(first.key)}"
+            src="/file/${encodeURIComponent(photo.key)}"
             loading="lazy"
           >
         </div>
+      `
+    ).join("");
+
+    const photoDots = group.length > 1
+      ? `
+        <div class="photo-dots">
+          ${group.map(
+            (_, index) => `
+              <span
+                class="photo-dot ${
+                  index === 0 ? "active" : ""
+                }"
+                data-index="${index}"
+              ></span>
+            `
+          ).join("")}
+        </div>
+      `
+      : "";
+
+    const photoControls = group.length > 1
+      ? `
+        <button
+          class="photo-arrow photo-prev"
+          type="button"
+          aria-label="Previous photo"
+        >
+          ‹
+        </button>
+
+        <button
+          class="photo-arrow photo-next"
+          type="button"
+          aria-label="Next photo"
+        >
+          ›
+        </button>
+      `
+      : "";
+
+    return `
+      <article class="media-card">
+
+        <div
+          class="media-preview photo-preview"
+          data-photo-gallery
+        >
+
+          <div class="photo-track">
+            ${photoSlides}
+          </div>
+
+          ${photoControls}
+          ${photoDots}
+
+          ${
+            group.length > 1
+              ? `
+                <div class="photo-count">
+                  1 / ${group.length}
+                </div>
+              `
+              : ""
+          }
+
+        </div>
 
         <div class="media-info">
+
           <div class="media-type photo-type">
             PHOTO POST
           </div>
@@ -359,25 +432,23 @@ function galleryPage(items) {
           </div>
 
           <div class="media-details">
+
             <span>
-              ${formatBytes(
-                group.reduce(
-                  (sum, x) =>
-                    sum + (x.size || 0),
-                  0
-                )
-              )}
+              ${formatBytes(totalPhotoBytes)}
             </span>
 
             <span>
-              ${formatDate(first.uploaded)}
+              ${formatDate(group[0].uploaded)}
             </span>
+
           </div>
 
           <div class="media-id">
             ID: ${postId}
           </div>
+
         </div>
+
       </article>
     `;
   }).join("");
@@ -719,6 +790,124 @@ main {
   object-fit: contain;
 }
 
+.photo-preview {
+  position: relative;
+}
+
+.photo-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.25s ease;
+}
+
+.photo-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+}
+
+.photo-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.photo-arrow {
+  position: absolute;
+
+  top: 50%;
+  transform: translateY(-50%);
+
+  width: 34px;
+  height: 34px;
+
+  border: 0;
+  border-radius: 50%;
+
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+
+  font-size: 25px;
+  line-height: 1;
+
+  display: grid;
+  place-items: center;
+
+  cursor: pointer;
+
+  z-index: 2;
+
+  transition:
+    background .15s ease,
+    transform .15s ease;
+}
+
+.photo-arrow:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.photo-prev {
+  left: 10px;
+}
+
+.photo-next {
+  right: 10px;
+}
+
+.photo-dots {
+  position: absolute;
+
+  bottom: 10px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  display: flex;
+  gap: 5px;
+
+  padding: 5px 7px;
+
+  border-radius: 999px;
+
+  background: rgba(0, 0, 0, 0.5);
+
+  z-index: 2;
+}
+
+.photo-dot {
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: rgba(255,255,255,0.45);
+}
+
+.photo-dot.active {
+  background: white;
+}
+
+.photo-count {
+  position: absolute;
+
+  top: 10px;
+  right: 10px;
+
+  padding: 4px 8px;
+
+  border-radius: 999px;
+
+  background: rgba(0, 0, 0, 0.65);
+
+  color: white;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  z-index: 2;
+}
+
 .media-info {
   padding: 13px 14px 15px;
 }
@@ -1032,10 +1221,85 @@ ${
 
 </main>
 
+<script>
+  document.querySelectorAll("[data-photo-gallery]").forEach(
+    (gallery) => {
+      const track =
+        gallery.querySelector(".photo-track");
+
+      const slides =
+        gallery.querySelectorAll(".photo-slide");
+
+      const dots =
+        gallery.querySelectorAll(".photo-dot");
+
+      const count =
+        gallery.querySelector(".photo-count");
+
+      const previous =
+        gallery.querySelector(".photo-prev");
+
+      const next =
+        gallery.querySelector(".photo-next");
+
+      let current = 0;
+
+      function showPhoto(index) {
+        if (!slides.length) {
+          return;
+        }
+
+        current =
+          (index + slides.length) %
+          slides.length;
+
+        track.style.transform =
+          "translateX(-" + (current * 100) + "%)";
+
+        dots.forEach((dot, i) => {
+          dot.classList.toggle(
+            "active",
+            i === current
+          );
+        });
+
+        if (count) {
+          count.textContent =
+            (current + 1) + " / " + slides.length;
+        }
+      }
+
+      if (previous) {
+        previous.addEventListener(
+          "click",
+          () => showPhoto(current - 1)
+        );
+      }
+
+      if (next) {
+        next.addEventListener(
+          "click",
+          () => showPhoto(current + 1)
+        );
+      }
+
+      dots.forEach((dot, index) => {
+        dot.addEventListener(
+          "click",
+          () => showPhoto(index)
+        );
+      });
+
+      showPhoto(0);
+    }
+  );
+</script>
+
 </body>
 
 </html>`;
 }
+
 
 export default {
 
@@ -1240,32 +1504,49 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-      const response = await fetch(
-          "https://api.github.com/repos/awesomegamercool/video-archiver/dispatches",
-          {
-              method: "POST",
-              headers: {
-                  "Accept": "application/vnd.github+json",
-                  "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
-                  "X-GitHub-Api-Version": "2026-03-10",
-                  "Content-Type": "application/json",
-                  "User-Agent": "tiktok-archive-worker",
-              },
-              body: JSON.stringify({
-                  event_type: "archive_tiktok",
-              }),
-          }
-      );
+    const response = await fetch(
+      "https://api.github.com/repos/awesomegamercool/video-archiver/dispatches",
+      {
+        method: "POST",
 
-      if (!response.ok) {
-          const text = await response.text();
+        headers: {
+          "Accept":
+            "application/vnd.github+json",
 
-          throw new Error(
-              `GitHub dispatch failed: ${response.status} ${text}`
-          );
+          "Authorization":
+            `Bearer ${env.GITHUB_TOKEN}`,
+
+          "X-GitHub-Api-Version":
+            "2026-03-10",
+
+          "Content-Type":
+            "application/json",
+
+          "User-Agent":
+            "tiktok-archive-worker",
+        },
+
+        body: JSON.stringify({
+          event_type:
+            "archive_tiktok",
+        }),
       }
+    );
 
-      console.log("GitHub archive workflow dispatched.");
+
+    if (!response.ok) {
+      const text =
+        await response.text();
+
+      throw new Error(
+        `GitHub dispatch failed: ${response.status} ${text}`
+      );
+    }
+
+
+    console.log(
+      "GitHub archive workflow dispatched."
+    );
   },
 };
 
