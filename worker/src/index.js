@@ -197,61 +197,225 @@ ${
 }
 
 
-function galleryPage(
-  items
-) {
-  const cards =
-    items.map(
-      (x) => {
-        const name =
-          x.key
-            .split("/")
-            .pop();
+function galleryPage(items) {
+  const media = items.filter((x) =>
+    x.key.startsWith("media/")
+  );
 
-        const ext =
-          name
-            .split(".")
-            .pop()
-            .toLowerCase();
+  const videos = media.filter((x) => {
+    const ext = x.key
+      .split(".")
+      .pop()
+      .toLowerCase();
 
-        if (
-          ![
-            "mp4",
-            "webm",
-            "mov",
-          ].includes(ext)
-        ) {
-          return "";
-        }
+    return ["mp4", "webm", "mov"].includes(ext);
+  });
 
-        const base =
-          name.replace(
-            /\.[^.]+$/,
-            ""
-          );
+  const photos = media.filter((x) => {
+    const ext = x.key
+      .split(".")
+      .pop()
+      .toLowerCase();
 
-        return `
-<article>
+    return ["jpg", "jpeg", "png", "webp", "gif"].includes(ext);
+  });
 
-<video
-  controls
-  preload="metadata"
-  src="/file/${encodeURIComponent(x.key)}"
-></video>
+  const totalBytes = media.reduce(
+    (sum, x) => sum + (x.size || 0),
+    0
+  );
 
-<div>
-${base}
-</div>
+  const formatBytes = (bytes) => {
+    if (!bytes) return "0 B";
 
-</article>`;
+    const units = [
+      "B",
+      "KB",
+      "MB",
+      "GB",
+      "TB",
+    ];
+
+    let value = bytes;
+    let unit = 0;
+
+    while (
+      value >= 1024 &&
+      unit < units.length - 1
+    ) {
+      value /= 1024;
+      unit++;
+    }
+
+    return `${value.toFixed(
+      unit === 0 ? 0 : 1
+    )} ${units[unit]}`;
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "Unknown";
+
+    return new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        dateStyle: "medium",
+        timeStyle: "short",
       }
-    ).join("");
+    ).format(new Date(date));
+  };
 
+  const getFileName = (key) =>
+    key.split("/").pop();
+
+  const getExtension = (key) =>
+    getFileName(key)
+      .split(".")
+      .pop()
+      .toLowerCase();
+
+  const getPostId = (key) => {
+    const parts = key.split("/");
+
+    return parts.length >= 2
+      ? parts[1]
+      : "Unknown";
+  };
+
+  const videoCards = videos.map((x) => {
+    const name = getFileName(x.key);
+    const postId = getPostId(x.key);
+
+    return `
+      <article class="media-card">
+        <div class="media-preview">
+          <video
+            controls
+            preload="metadata"
+            src="/file/${encodeURIComponent(x.key)}"
+          ></video>
+        </div>
+
+        <div class="media-info">
+          <div class="media-type">
+            VIDEO
+          </div>
+
+          <div class="media-title">
+            ${name}
+          </div>
+
+          <div class="media-details">
+            <span>
+              ${formatBytes(x.size)}
+            </span>
+
+            <span>
+              ${formatDate(x.uploaded)}
+            </span>
+          </div>
+
+          <div class="media-id">
+            ID: ${postId}
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  const photoGroups = new Map();
+
+  for (const x of photos) {
+    const postId = getPostId(x.key);
+
+    if (!photoGroups.has(postId)) {
+      photoGroups.set(postId, []);
+    }
+
+    photoGroups.get(postId).push(x);
+  }
+
+  const photoCards = Array.from(
+    photoGroups.entries()
+  ).map(([postId, group]) => {
+    const first = group[0];
+
+    return `
+      <article class="media-card">
+        <div class="media-preview photo-preview">
+          <img
+            src="/file/${encodeURIComponent(first.key)}"
+            loading="lazy"
+          >
+        </div>
+
+        <div class="media-info">
+          <div class="media-type photo-type">
+            PHOTO POST
+          </div>
+
+          <div class="media-title">
+            ${group.length}
+            ${group.length === 1 ? "photo" : "photos"}
+          </div>
+
+          <div class="media-details">
+            <span>
+              ${formatBytes(
+                group.reduce(
+                  (sum, x) =>
+                    sum + (x.size || 0),
+                  0
+                )
+              )}
+            </span>
+
+            <span>
+              ${formatDate(first.uploaded)}
+            </span>
+          </div>
+
+          <div class="media-id">
+            ID: ${postId}
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  const cards =
+    videoCards + photoCards;
+
+  const latestUpload =
+    media.length > 0
+      ? media.reduce(
+          (latest, current) =>
+            new Date(current.uploaded) >
+            new Date(latest.uploaded)
+              ? current
+              : latest
+        ).uploaded
+      : null;
+
+  const oldestUpload =
+    media.length > 0
+      ? media.reduce(
+          (oldest, current) =>
+            new Date(current.uploaded) <
+            new Date(oldest.uploaded)
+              ? current
+              : oldest
+        ).uploaded
+      : null;
+
+  const uniquePosts = new Set(
+    media.map((x) =>
+      getPostId(x.key)
+    )
+  ).size;
 
   return `<!doctype html>
 
 <html>
-
 <head>
 
 <meta
@@ -260,56 +424,403 @@ ${base}
 >
 
 <title>
-TikTok archive
+TikTok Archive
 </title>
 
 <style>
 
-body{
-  font-family:system-ui;
-  margin:0;
-  background:#0d0d0d;
-  color:#eee
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
 
-header{
-  position:sticky;
-  top:0;
-  padding:16px 20px;
-  background:#151515;
-  border-bottom:1px solid #333
+* {
+  box-sizing: border-box;
 }
 
-main{
-  display:grid;
+body {
+  margin: 0;
+  background:
+    radial-gradient(
+      circle at top,
+      #202020 0,
+      #0b0b0b 45%,
+      #080808 100%
+    );
+  color: #f5f5f5;
+  min-height: 100vh;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  backdrop-filter: blur(18px);
+
+  background:
+    rgba(15, 15, 15, 0.82);
+
+  border-bottom:
+    1px solid rgba(255,255,255,0.08);
+
+  padding: 18px 28px;
+}
+
+.header-inner {
+  max-width: 1500px;
+  margin: auto;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-icon {
+  width: 40px;
+  height: 40px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #25f4ee,
+      #fe2c55
+    );
+
+  color: white;
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.brand-text strong {
+  display: block;
+  font-size: 16px;
+}
+
+.brand-text span {
+  display: block;
+  margin-top: 2px;
+
+  color: #888;
+  font-size: 12px;
+}
+
+main {
+  max-width: 1500px;
+  margin: auto;
+  padding: 28px;
+}
+
+.hero {
+  margin-bottom: 28px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 32px;
+  letter-spacing: -1px;
+}
+
+.hero p {
+  margin: 7px 0 0;
+  color: #888;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 14px;
+
+  padding: 7px 11px;
+
+  border-radius: 999px;
+
+  background:
+    rgba(50, 205, 100, 0.08);
+
+  border:
+    1px solid rgba(50, 205, 100, 0.2);
+
+  color: #8df0aa;
+
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #55e87b;
+
+  box-shadow:
+    0 0 10px
+    rgba(85, 232, 123, 0.7);
+}
+
+.stats {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(170px, 1fr)
+    );
+
+  gap: 12px;
+
+  margin-bottom: 34px;
+}
+
+.stat {
+  padding: 18px;
+
+  border:
+    1px solid rgba(255,255,255,0.08);
+
+  border-radius: 16px;
+
+  background:
+    rgba(255,255,255,0.035);
+
+  box-shadow:
+    0 10px 30px
+    rgba(0,0,0,0.18);
+}
+
+.stat-label {
+  color: #888;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+}
+
+.stat-value {
+  margin-top: 8px;
+
+  font-size: 25px;
+  font-weight: 750;
+
+  letter-spacing: -0.5px;
+}
+
+.stat-sub {
+  margin-top: 4px;
+
+  color: #666;
+
+  font-size: 11px;
+}
+
+.section-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+
+  gap: 20px;
+
+  margin-bottom: 15px;
+}
+
+.section-header h2 {
+  margin: 0;
+
+  font-size: 20px;
+}
+
+.section-header span {
+  color: #777;
+  font-size: 12px;
+}
+
+.grid {
+  display: grid;
+
   grid-template-columns:
     repeat(
       auto-fill,
-      minmax(230px,1fr)
+      minmax(245px, 1fr)
     );
-  gap:16px;
-  padding:16px
+
+  gap: 16px;
 }
 
-article{
-  background:#171717;
-  border:1px solid #333;
-  border-radius:14px;
-  overflow:hidden
+.media-card {
+  overflow: hidden;
+
+  border:
+    1px solid rgba(255,255,255,0.08);
+
+  border-radius: 17px;
+
+  background:
+    rgba(255,255,255,0.035);
+
+  box-shadow:
+    0 12px 35px
+    rgba(0,0,0,0.22);
+
+  transition:
+    transform .18s ease,
+    border-color .18s ease;
+
+  min-width: 0;
 }
 
-video{
-  display:block;
-  width:100%;
-  aspect-ratio:9/16;
-  background:black
+.media-card:hover {
+  transform: translateY(-3px);
+
+  border-color:
+    rgba(255,255,255,0.16);
 }
 
-article div{
-  padding:10px;
-  font-size:12px;
-  word-break:break-all;
-  color:#bbb
+.media-preview {
+  background: #000;
+
+  aspect-ratio: 9 / 16;
+
+  overflow: hidden;
+}
+
+.media-preview video,
+.media-preview img {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+}
+
+.photo-preview img {
+  object-fit: contain;
+}
+
+.media-info {
+  padding: 13px 14px 15px;
+}
+
+.media-type {
+  color: #25f4ee;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: 1px;
+}
+
+.photo-type {
+  color: #fe2c55;
+}
+
+.media-title {
+  margin-top: 7px;
+
+  font-size: 13px;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-details {
+  display: flex;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  margin-top: 8px;
+
+  color: #888;
+
+  font-size: 11px;
+}
+
+.media-id {
+  margin-top: 7px;
+
+  color: #555;
+
+  font-size: 10px;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  padding: 60px 20px;
+
+  text-align: center;
+
+  color: #666;
+
+  border:
+    1px dashed #333;
+
+  border-radius: 16px;
+}
+
+@media (max-width: 600px) {
+
+  header {
+    padding: 15px;
+  }
+
+  main {
+    padding: 18px 14px;
+  }
+
+  .hero h1 {
+    font-size: 27px;
+  }
+
+  .grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+    gap: 10px;
+  }
+
+  .media-card {
+    border-radius: 13px;
+  }
+
+  .media-info {
+    padding: 10px;
+  }
+
+  .media-details {
+    display: block;
+  }
+
+  .media-details span {
+    display: block;
+    margin-top: 3px;
+  }
+
 }
 
 </style>
@@ -319,23 +830,212 @@ article div{
 <body>
 
 <header>
+
+<div class="header-inner">
+
+<div class="brand">
+
+<div class="brand-icon">
+T
+</div>
+
+<div class="brand-text">
+
 <strong>
-Private TikTok Archive
+TikTok Archive
 </strong>
+
+<span>
+Private personal archive
+</span>
+
+</div>
+
+</div>
+
+</div>
+
 </header>
 
 <main>
+
+<section class="hero">
+
+<h1>
+Archive Dashboard
+</h1>
+
+<p>
+Your archived TikTok posts and media.
+</p>
+
+<div class="status">
+
+<span class="status-dot"></span>
+
+Archive storage online
+
+</div>
+
+</section>
+
+<section class="stats">
+
+<div class="stat">
+
+<div class="stat-label">
+Archived Posts
+</div>
+
+<div class="stat-value">
+${uniquePosts}
+</div>
+
+<div class="stat-sub">
+Unique TikTok IDs
+</div>
+
+</div>
+
+<div class="stat">
+
+<div class="stat-label">
+Videos
+</div>
+
+<div class="stat-value">
+${videos.length}
+</div>
+
+<div class="stat-sub">
+Video files
+</div>
+
+</div>
+
+<div class="stat">
+
+<div class="stat-label">
+Photos
+</div>
+
+<div class="stat-value">
+${photos.length}
+</div>
+
+<div class="stat-sub">
+Individual images
+</div>
+
+</div>
+
+<div class="stat">
+
+<div class="stat-label">
+Total Files
+</div>
+
+<div class="stat-value">
+${media.length}
+</div>
+
+<div class="stat-sub">
+Stored in R2
+</div>
+
+</div>
+
+<div class="stat">
+
+<div class="stat-label">
+Storage Used
+</div>
+
+<div class="stat-value">
+${formatBytes(totalBytes)}
+</div>
+
+<div class="stat-sub">
+Archive media
+</div>
+
+</div>
+
+<div class="stat">
+
+<div class="stat-label">
+Latest Archive
+</div>
+
+<div class="stat-value"
+     style="font-size:16px">
+
+${formatDate(latestUpload)}
+
+</div>
+
+<div class="stat-sub">
+Most recently uploaded
+</div>
+
+</div>
+
+<div class="stat">
+
+<div class="stat-label">
+First Archive
+</div>
+
+<div class="stat-value"
+     style="font-size:16px">
+
+${formatDate(oldestUpload)}
+
+</div>
+
+<div class="stat-sub">
+Oldest stored media
+</div>
+
+</div>
+
+</section>
+
+<section>
+
+<div class="section-header">
+
+<h2>
+Archived Media
+</h2>
+
+<span>
+${media.length} files
+</span>
+
+</div>
+
+<div class="grid">
+
 ${
   cards ||
-  "<p>No archived videos yet.</p>"
+  `
+    <div class="empty">
+      No archived media yet.
+    </div>
+  `
 }
+
+</div>
+
+</section>
+
 </main>
 
 </body>
 
 </html>`;
 }
-
 
 export default {
 
