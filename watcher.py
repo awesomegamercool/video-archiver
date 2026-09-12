@@ -270,7 +270,6 @@ def download_video(video):
 
     last_error = None
 
-    # First try yt-dlp.
     for attempt in range(3):
         try:
             print(
@@ -286,46 +285,81 @@ def download_video(video):
 
         except Exception as exc:
             last_error = exc
+
             print(
                 f"yt-dlp attempt {attempt + 1}/3 failed: "
                 f"{exc}"
             )
 
-    # If yt-dlp failed, fall back to TikWM.
-        if last_error is not None:
-            raise last_error
+    if last_error is not None:
+        raise last_error
 
-        media_path = None
+    media_path = None
 
-        for filename in os.listdir(tempfile.gettempdir()):
-            if filename.startswith(f"tiktok_{video_id}."):
-                candidate = os.path.join(
-                    tempfile.gettempdir(),
-                    filename,
-                )
-
-                if os.path.isfile(candidate):
-                    media_path = candidate
-                    break
-
-        if media_path is None:
-            raise RuntimeError(
-                f"Could not find downloaded media for {video_id}."
+    for filename in os.listdir(tempfile.gettempdir()):
+        if filename.startswith(
+            f"tiktok_{video_id}."
+        ):
+            candidate = os.path.join(
+                tempfile.gettempdir(),
+                filename,
             )
+
+            if os.path.isfile(candidate):
+                media_path = candidate
+                break
+
+    if media_path is None:
+        raise RuntimeError(
+            f"yt-dlp reported success, but no downloaded "
+            f"media file was found for {video_id}."
+        )
+
+    print(
+        f"Found downloaded file: {media_path}"
+    )
+
+    extension = os.path.splitext(
+        media_path
+    )[1].lower()
+
+    if extension == ".mp4":
+        content_type = "video/mp4"
+    elif extension == ".webm":
+        content_type = "video/webm"
+    elif extension == ".mkv":
+        content_type = "video/x-matroska"
+    elif extension == ".m4a":
+        content_type = "audio/mp4"
+    elif extension == ".mp3":
+        content_type = "audio/mpeg"
+    else:
+        content_type = "application/octet-stream"
+
+    archive_extension = (
+        extension[1:]
+        if extension
+        else "bin"
+    )
+
+    archive_key = (
+        f"media/{video_id}.{archive_extension}"
+    )
 
     with open(media_path, "rb") as file:
         s3.put_object(
             Bucket=R2_BUCKET,
-            Key=f"media/{video_id}.mp4",
+            Key=archive_key,
             Body=file,
-            ContentType="video/mp4",
+            ContentType=content_type,
         )
 
     metadata = {
         "id": video_id,
         "url": video_url,
         "type": "video",
-        "archived_at": datetime.now().isoformat(),
+        "file": archive_key,
+        "archived_at": now_iso(),
     }
 
     s3.put_object(
@@ -343,7 +377,9 @@ def download_video(video):
     except OSError:
         pass
 
-    print(f"Archived video {video_id}.")
+    print(
+        f"Archived video {video_id}."
+    )
 
 
 def download_photo_post(video):
