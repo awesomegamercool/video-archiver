@@ -19,7 +19,6 @@ jobs:
 
     env:
       TIKTOK_USERNAME: ${{ secrets.TIKTOK_USERNAME }}
-      TIKTOK_COOKIES_FILE: ${{ runner.temp }}/tiktok-cookies.txt
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -51,4 +50,5 @@ jobs:
 
       - name: Archive TikToks
         run: |
+          export TIKTOK_COOKIES_FILE="$RUNNER_TEMP/tiktok-cookies.txt"
           python watcher.py
