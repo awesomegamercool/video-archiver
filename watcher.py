@@ -260,7 +260,7 @@ def download_video(video):
 
     options = {
         "outtmpl": output_template,
-        "format": "bestvideo*+bestaudio/best",
+        "format": "bestvideo*",
         "merge_output_format": "mp4",
         "noplaylist": True,
         "quiet": False,
@@ -381,6 +381,247 @@ def download_video(video):
         f"Archived video {video_id}."
     )
 
+def download_authenticated_photo_post(video):
+    video_id = video["id"]
+    video_url = video["url"]
+
+    print(
+        f"Resolving authenticated photo post {video_id}..."
+    )
+
+    if not TIKTOK_COOKIES_FILE:
+        raise RuntimeError(
+            "TIKTOK_COOKIES_FILE is not configured."
+        )
+
+    session = requests.Session()
+
+    session.headers.update(
+        {
+            "User-Agent": (
+                "Mozilla/5.0 "
+                "(Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
+                "Chrome/140.0.0.0 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,"
+                "application/xml;q=0.9,image/avif,"
+                "image/webp,*/*;q=0.8"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+    )
+
+    # Load TikTok cookies from the Netscape cookie file.
+    with open(
+        TIKTOK_COOKIES_FILE,
+        "r",
+        encoding="utf-8",
+    ) as cookie_file:
+
+        for line in cookie_file:
+            line = line.strip()
+
+            if (
+                not line
+                or line.startswith("#")
+            ):
+                continue
+
+            parts = line.split("\t")
+
+            if len(parts) != 7:
+                continue
+
+            domain = parts[0]
+            path = parts[2]
+            name = parts[5]
+            value = parts[6]
+
+            if "tiktok.com" not in domain:
+                continue
+
+            session.cookies.set(
+                name,
+                value,
+                domain=domain,
+                path=path,
+            )
+
+    response = session.get(
+        video_url,
+        timeout=60,
+        allow_redirects=True,
+    )
+
+    response.raise_for_status()
+
+    html = response.text
+
+    marker = (
+        '<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"'
+    )
+
+    marker_start = html.find(marker)
+
+    if marker_start == -1:
+        raise RuntimeError(
+            "Could not find TikTok universal data "
+            f"for {video_id}."
+        )
+
+    content_start = html.find(
+        ">",
+        marker_start,
+    )
+
+    content_end = html.find(
+        "</script>",
+        content_start,
+    )
+
+    if (
+        content_start == -1
+        or content_end == -1
+    ):
+        raise RuntimeError(
+            "Could not extract TikTok universal "
+            f"data for {video_id}."
+        )
+
+    json_text = html[
+        content_start + 1 : content_end
+    ]
+
+    try:
+        universal_data = json.loads(
+            json_text
+        )
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Could not parse TikTok universal data "
+            f"for {video_id}: {exc}"
+        )
+
+    default_scope = (
+        universal_data.get(
+            "__DEFAULT_SCOPE__"
+        )
+        or {}
+    )
+
+    video_detail = (
+        default_scope.get(
+            "webapp.video-detail"
+        )
+        or {}
+    )
+
+    item_info = (
+        video_detail.get("itemInfo")
+        or {}
+    )
+
+    item_struct = (
+        item_info.get("itemStruct")
+        or {}
+    )
+
+    image_post = (
+        item_struct.get("imagePost")
+        or {}
+    )
+
+    images = (
+        image_post.get("images")
+        or []
+    )
+
+    if not images:
+        raise RuntimeError(
+            f"TikTok returned no slideshow images "
+            f"for {video_id}."
+        )
+
+    image_urls = []
+
+    for image in images:
+        image_url_data = (
+            image.get("imageURL")
+            or {}
+        )
+
+        url_list = (
+            image_url_data.get("urlList")
+            or []
+        )
+
+        if not url_list:
+            continue
+
+        image_url = url_list[0]
+
+        if image_url not in image_urls:
+            image_urls.append(image_url)
+
+    if not image_urls:
+        raise RuntimeError(
+            f"TikTok returned slideshow metadata but "
+            f"no usable image URLs for {video_id}."
+        )
+
+    print(
+        f"Found {len(image_urls)} authenticated "
+        f"image(s)."
+    )
+
+    for index, image_url in enumerate(
+        image_urls,
+        start=1,
+    ):
+        image_response = session.get(
+            image_url,
+            headers={
+                "Referer": video_url,
+            },
+            timeout=120,
+        )
+
+        image_response.raise_for_status()
+
+        key = (
+            f"media/{video_id}/"
+            f"{index:03d}.jpg"
+        )
+
+        print(
+            f"Uploading {key}..."
+        )
+
+        s3.put_object(
+            Bucket=R2_BUCKET,
+            Key=key,
+            Body=image_response.content,
+            ContentType="image/jpeg",
+        )
+
+    save_metadata(
+        video,
+        {
+            "type": "photo",
+            "video_id": video_id,
+            "tiktok_url": video_url,
+            "image_count": len(image_urls),
+            "archived_at": now_iso(),
+        },
+    )
+
+    print(
+        f"Archived authenticated photo post "
+        f"{video_id}."
+    )
 
 def download_photo_post(video):
     """
@@ -513,7 +754,22 @@ def archive_video(video):
         )
 
     print(
-        f"Checking {video['id']} for photo/slideshow..."
+        f"Trying authenticated photo resolver "
+        f"for {video['id']}..."
+    )
+
+    try:
+        download_authenticated_photo_post(video)
+        return
+    except Exception as authenticated_photo_error:
+        print(
+            f"Authenticated photo resolver could not "
+            f"archive {video['id']}: "
+            f"{authenticated_photo_error}"
+        )
+
+    print(
+        f"Checking {video['id']} with TikWM..."
     )
 
     if is_photo_post(video["url"]):
