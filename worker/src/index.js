@@ -281,12 +281,35 @@ function galleryPage(items) {
       : "Unknown";
   };
 
+  const getPostDate = (postId) => {
+    try {
+      const timestamp =
+        Number(BigInt(postId) >> 32n);
+
+      if (
+        !Number.isFinite(timestamp) ||
+        timestamp <= 0
+      ) {
+        return null;
+      }
+
+      return new Date(timestamp * 1000);
+    } catch {
+      return null;
+    }
+  };
+
   const videoCards = videos.map((x) => {
     const name = getFileName(x.key);
     const postId = getPostId(x.key);
 
     return `
-      <article class="media-card">
+      <article
+        class="media-card"
+        data-uploaded="${getPostDate(postId)?.getTime() || 0}"
+        data-archived="${new Date(x.uploaded).getTime() || 0}"
+        data-size="${x.size || 0}"
+      >
         <div class="media-preview">
           <video
             controls
@@ -394,7 +417,23 @@ function galleryPage(items) {
       : "";
 
     return `
-      <article class="media-card">
+          <article
+            class="media-card"
+            data-uploaded="${getPostDate(postId)?.getTime() || 0}"
+            data-archived="${
+              new Date(
+                group.reduce(
+                  (latest, photo) =>
+                    new Date(photo.uploaded) >
+                    new Date(latest)
+                      ? photo.uploaded
+                      : latest,
+                  group[0].uploaded
+                )
+              ).getTime() || 0
+            }"
+            data-size="${totalPhotoBytes}"
+          >
 
         <div
           class="media-preview photo-preview"
@@ -453,8 +492,36 @@ function galleryPage(items) {
     `;
   }).join("");
 
-  const cards =
-    videoCards + photoCards;
+  const posts = [
+    ...videos.map((video) => ({
+      id: getPostId(video.key),
+      type: "video",
+      files: [video],
+      size: video.size || 0,
+      archived: video.uploaded,
+    })),
+
+    ...Array.from(
+      photoGroups.entries()
+    ).map(([postId, group]) => ({
+      id: postId,
+      type: "photo",
+      files: group,
+      size: group.reduce(
+        (sum, photo) =>
+          sum + (photo.size || 0),
+        0
+      ),
+      archived: group.reduce(
+        (latest, photo) =>
+          new Date(photo.uploaded) >
+          new Date(latest)
+            ? photo.uploaded
+            : latest,
+        group[0].uploaded
+      ),
+    })),
+  ];
 
   const latestUpload =
     media.length > 0
@@ -725,6 +792,50 @@ main {
 .section-header span {
   color: #777;
   font-size: 12px;
+}
+
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.sort-controls select,
+.sort-controls button {
+  padding: 10px 13px;
+
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+
+  background: #191919;
+  color: #eee;
+
+  font: inherit;
+  font-size: 12px;
+
+  cursor: pointer;
+}
+
+.sort-controls select {
+  min-width: 150px;
+}
+
+.sort-controls button:hover,
+.sort-controls select:hover {
+  border-color: rgba(255,255,255,0.3);
+}
+
+@media (max-width: 600px) {
+  .sort-controls {
+    gap: 7px;
+  }
+
+  .sort-controls select,
+  .sort-controls button {
+    padding: 9px 10px;
+    font-size: 11px;
+  }
 }
 
 .grid {
@@ -1204,7 +1315,33 @@ ${media.length} files
 
 </div>
 
-<div class="grid">
+<div class="sort-controls">
+
+  <select id="sort-by">
+    <option value="uploaded">
+      Date uploaded
+    </option>
+
+    <option value="archived">
+      Date archived
+    </option>
+
+    <option value="size">
+      Size
+    </option>
+  </select>
+
+  <button
+    id="sort-direction"
+    type="button"
+    data-direction="descending"
+  >
+    Newest first ↓
+  </button>
+
+</div>
+
+<div class="grid" id="media-grid">
 
 ${
   cards ||
@@ -1293,6 +1430,80 @@ ${
       showPhoto(0);
     }
   );
+
+  const mediaGrid =
+    document.getElementById("media-grid");
+
+  const sortBy =
+    document.getElementById("sort-by");
+
+  const sortDirection =
+    document.getElementById("sort-direction");
+
+  let direction = "descending";
+
+  function sortMedia() {
+    const cards = Array.from(
+      mediaGrid.querySelectorAll(".media-card")
+    );
+
+    const property = sortBy.value;
+
+    cards.sort((a, b) => {
+      const aValue =
+        Number(a.dataset[property]) || 0;
+
+      const bValue =
+        Number(b.dataset[property]) || 0;
+
+      return direction === "ascending"
+        ? aValue - bValue
+        : bValue - aValue;
+    });
+
+    cards.forEach((card) => {
+      mediaGrid.appendChild(card);
+    });
+
+    if (property === "size") {
+      sortDirection.textContent =
+        direction === "ascending"
+          ? "Smallest first ↑"
+          : "Largest first ↓";
+    } else if (property === "archived") {
+      sortDirection.textContent =
+        direction === "ascending"
+          ? "Oldest archived ↑"
+          : "Newest archived ↓";
+    } else {
+      sortDirection.textContent =
+        direction === "ascending"
+          ? "Oldest first ↑"
+          : "Newest first ↓";
+    }
+
+    sortDirection.dataset.direction =
+      direction;
+  }
+
+  sortBy.addEventListener(
+    "change",
+    sortMedia
+  );
+
+  sortDirection.addEventListener(
+    "click",
+    () => {
+      direction =
+        direction === "descending"
+          ? "ascending"
+          : "descending";
+
+      sortMedia();
+    }
+  );
+
+  sortMedia();
 </script>
 
 </body>
