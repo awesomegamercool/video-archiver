@@ -276,9 +276,11 @@ function galleryPage(items) {
   const getPostId = (key) => {
     const parts = key.split("/");
 
-    return parts.length >= 2
-      ? parts[1]
-      : "Unknown";
+    if (parts.length < 2) {
+      return "Unknown";
+    }
+
+    return parts[1].replace(/\.[^.]+$/, "");
   };
 
   const getPostDate = (postId) => {
