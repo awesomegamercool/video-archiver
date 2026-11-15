@@ -1344,7 +1344,7 @@ ${media.length} files
 <div class="grid" id="media-grid">
 
 ${
-  cards ||
+  (videoCards + photoCards) ||
   `
     <div class="empty">
       No archived media yet.
