@@ -131,66 +131,206 @@ function loginPage(
   error = ""
 ) {
   return `<!doctype html>
-<html>
+<html lang="en">
 <head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Private archive</title>
+<title>Sign in · Private Archive</title>
 
 <style>
-body{
-  font-family:system-ui;
-  max-width:420px;
-  margin:12vh auto;
-  padding:24px;
-  background:#111;
-  color:#eee
-}
+  :root {
+    color-scheme: dark;
+    --bg: #0a0a0b;
+    --bg-elevated: #111113;
+    --border: #1f1f23;
+    --border-strong: #2a2a30;
+    --text: #ededef;
+    --text-muted: #8b8b93;
+    --text-subtle: #5c5c63;
+    --accent: #6e8efb;
+    --accent-hover: #7f9dff;
+    --danger: #f87171;
+    --radius: 8px;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Monaco, monospace;
+  }
 
-input,button{
-  width:100%;
-  box-sizing:border-box;
-  padding:12px;
-  margin:8px 0;
-  border-radius:10px;
-  border:1px solid #444
-}
+  * { box-sizing: border-box; }
 
-button{
-  cursor:pointer
-}
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
 
-.err{
-  color:#ff8a8a
-}
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .login-shell {
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .login-mark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+
+  .login-mark-symbol {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .login-mark-text {
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0.01em;
+  }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  .subtitle {
+    margin: 0 0 24px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .error-banner {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--danger);
+    background: rgba(248, 113, 113, 0.06);
+    border: 1px solid rgba(248, 113, 113, 0.2);
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.01em;
+  }
+
+  input {
+    width: 100%;
+    padding: 9px 12px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  input::placeholder {
+    color: var(--text-subtle);
+  }
+
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(110, 142, 251, 0.12);
+  }
+
+  button {
+    margin-top: 4px;
+    width: 100%;
+    padding: 9px 14px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    color: #fff;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  button:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+
+  button:active {
+    transform: translateY(0.5px);
+  }
 </style>
 
 </head>
-
 <body>
 
-<h1>Private archive</h1>
+<div class="login-shell">
 
-${
-  error
-    ? `<p class="err">${error}</p>`
-    : ""
-}
+  <div class="login-mark">
+    <div class="login-mark-symbol">T</div>
+    <div class="login-mark-text">Private Archive</div>
+  </div>
 
-<form method="post" action="/login">
+  <h1>Sign in</h1>
+  <p class="subtitle">Access your personal media archive.</p>
 
-<input
-  name="password"
-  type="password"
-  placeholder="Password"
-  autofocus
-  required
->
+  ${
+    error
+      ? `<div class="error-banner">${error}</div>`
+      : ""
+  }
 
-<button>
-  Sign in
-</button>
+  <form method="post" action="/login">
+    <div>
+      <label for="password">Password</label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        placeholder="Enter your password"
+        autofocus
+        required
+      >
+    </div>
+    <button type="submit">Continue</button>
+  </form>
 
-</form>
+</div>
 
 </body>
 </html>`;
@@ -554,69 +694,87 @@ function galleryPage(items) {
   ).size;
 
   return `<!doctype html>
-
-<html>
+<html lang="en">
 <head>
 
+<meta charset="utf-8">
 <meta
   name="viewport"
   content="width=device-width,initial-scale=1"
 >
 
-<title>
-TikTok Archive
-</title>
+<title>TikTok Archive</title>
 
 <style>
 
 :root {
   color-scheme: dark;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+
+  --bg: #0a0a0b;
+  --bg-elevated: #111113;
+  --bg-hover: #16161a;
+  --border: #1f1f23;
+  --border-strong: #2a2a30;
+  --border-hover: #3a3a42;
+
+  --text: #ededef;
+  --text-muted: #8b8b93;
+  --text-subtle: #5c5c63;
+
+  --accent: #6e8efb;
+  --accent-muted: rgba(110, 142, 251, 0.1);
+  --success: #4ade80;
+  --success-muted: rgba(74, 222, 128, 0.1);
+
+  --radius: 8px;
+  --radius-lg: 10px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Monaco, monospace;
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
+html, body {
   margin: 0;
-  background:
-    radial-gradient(
-      circle at top,
-      #202020 0,
-      #0b0b0b 45%,
-      #080808 100%
-    );
-  color: #f5f5f5;
-  min-height: 100vh;
+  padding: 0;
 }
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------- Header ---------- */
 
 header {
   position: sticky;
   top: 0;
   z-index: 10;
 
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 
-  background:
-    rgba(15, 15, 15, 0.82);
+  background: rgba(10, 10, 11, 0.75);
 
-  border-bottom:
-    1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid var(--border);
 
-  padding: 18px 28px;
+  padding: 0 24px;
 }
 
 .header-inner {
-  max-width: 1500px;
-  margin: auto;
+  max-width: 1280px;
+  margin: 0 auto;
+
+  height: 56px;
 
   display: flex;
   align-items: center;
@@ -628,48 +786,53 @@ header {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .brand-icon {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
 
   display: grid;
   place-items: center;
 
-  border-radius: 12px;
+  border-radius: 7px;
 
-  background:
-    linear-gradient(
-      135deg,
-      #25f4ee,
-      #fe2c55
-    );
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
 
-  color: white;
-  font-weight: 900;
-  font-size: 18px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .brand-text strong {
   display: block;
-  font-size: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 .brand-text span {
   display: block;
-  margin-top: 2px;
+  margin-top: 1px;
 
-  color: #888;
-  font-size: 12px;
+  color: var(--text-subtle);
+  font-size: 11px;
+  letter-spacing: 0.01em;
 }
+
+/* ---------- Layout ---------- */
 
 main {
-  max-width: 1500px;
-  margin: auto;
-  padding: 28px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
 }
+
+/* ---------- Hero ---------- */
 
 .hero {
   margin-bottom: 28px;
@@ -677,208 +840,204 @@ main {
 
 .hero h1 {
   margin: 0;
-  font-size: 32px;
-  letter-spacing: -1px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
 
 .hero p {
-  margin: 7px 0 0;
-  color: #888;
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .status {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 
   margin-top: 14px;
 
-  padding: 7px 11px;
+  padding: 4px 10px;
 
   border-radius: 999px;
 
-  background:
-    rgba(50, 205, 100, 0.08);
+  background: var(--success-muted);
 
-  border:
-    1px solid rgba(50, 205, 100, 0.2);
+  border: 1px solid rgba(74, 222, 128, 0.18);
 
-  color: #8df0aa;
+  color: var(--success);
 
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .status-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
 
   border-radius: 50%;
 
-  background: #55e87b;
-
-  box-shadow:
-    0 0 10px
-    rgba(85, 232, 123, 0.7);
+  background: var(--success);
 }
+
+/* ---------- Stats ---------- */
 
 .stats {
   display: grid;
 
   grid-template-columns:
-    repeat(
-      auto-fit,
-      minmax(170px, 1fr)
-    );
+    repeat(auto-fit, minmax(160px, 1fr));
 
-  gap: 12px;
+  gap: 1px;
 
-  margin-bottom: 34px;
+  margin-bottom: 36px;
+
+  background: var(--border);
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+
+  overflow: hidden;
 }
 
 .stat {
-  padding: 18px;
+  padding: 16px 18px;
 
-  border:
-    1px solid rgba(255,255,255,0.08);
-
-  border-radius: 16px;
-
-  background:
-    rgba(255,255,255,0.035);
-
-  box-shadow:
-    0 10px 30px
-    rgba(0,0,0,0.18);
+  background: var(--bg-elevated);
 }
 
 .stat-label {
-  color: #888;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: .7px;
+  letter-spacing: 0.06em;
 }
 
 .stat-value {
-  margin-top: 8px;
+  margin-top: 6px;
 
-  font-size: 25px;
-  font-weight: 750;
+  font-size: 22px;
+  font-weight: 600;
 
-  letter-spacing: -0.5px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-sub {
-  margin-top: 4px;
+  margin-top: 2px;
 
-  color: #666;
+  color: var(--text-subtle);
 
   font-size: 11px;
 }
 
+/* ---------- Section header ---------- */
+
 .section-header {
   display: flex;
-  align-items: end;
+  align-items: baseline;
   justify-content: space-between;
 
   gap: 20px;
 
-  margin-bottom: 15px;
+  margin-bottom: 16px;
 }
 
 .section-header h2 {
   margin: 0;
 
-  font-size: 20px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .section-header span {
-  color: #777;
-  font-size: 12px;
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
+
+/* ---------- Sort controls ---------- */
 
 .sort-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 8px;
+  margin-bottom: 20px;
 }
 
 .sort-controls select,
 .sort-controls button {
-  padding: 10px 13px;
+  padding: 7px 11px;
 
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
 
-  background: #191919;
-  color: #eee;
+  background: var(--bg-elevated);
+  color: var(--text);
 
-  font: inherit;
+  font-family: var(--font-sans);
   font-size: 12px;
+  font-weight: 500;
 
   cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .sort-controls select {
   min-width: 150px;
 }
 
+.sort-controls select:focus,
+.sort-controls button:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .sort-controls button:hover,
 .sort-controls select:hover {
-  border-color: rgba(255,255,255,0.3);
+  border-color: var(--border-hover);
+  background: var(--bg-hover);
 }
 
-@media (max-width: 600px) {
-  .sort-controls {
-    gap: 7px;
-  }
-
-  .sort-controls select,
-  .sort-controls button {
-    padding: 9px 10px;
-    font-size: 11px;
-  }
-}
+/* ---------- Grid ---------- */
 
 .grid {
   display: grid;
 
   grid-template-columns:
-    repeat(
-      auto-fill,
-      minmax(245px, 1fr)
-    );
+    repeat(auto-fill, minmax(220px, 1fr));
 
-  gap: 16px;
+  gap: 14px;
 }
+
+/* ---------- Media card ---------- */
 
 .media-card {
   overflow: hidden;
 
-  border:
-    1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 
-  border-radius: 17px;
-
-  background:
-    rgba(255,255,255,0.035);
-
-  box-shadow:
-    0 12px 35px
-    rgba(0,0,0,0.22);
+  background: var(--bg-elevated);
 
   transition:
-    transform .18s ease,
-    border-color .18s ease;
+    border-color 0.15s ease;
 
   min-width: 0;
 }
 
 .media-card:hover {
-  transform: translateY(-3px);
-
-  border-color:
-    rgba(255,255,255,0.16);
+  border-color: var(--border-hover);
 }
 
 .media-preview {
@@ -911,7 +1070,7 @@ main {
   display: flex;
   width: 100%;
   height: 100%;
-  transition: transform 0.25s ease;
+  transition: transform 0.22s ease;
 }
 
 .photo-slide {
@@ -932,16 +1091,16 @@ main {
   top: 50%;
   transform: translateY(-50%);
 
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
 
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 50%;
 
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.6);
   color: white;
 
-  font-size: 25px;
+  font-size: 20px;
   line-height: 1;
 
   display: grid;
@@ -951,35 +1110,38 @@ main {
 
   z-index: 2;
 
+  padding: 0;
+
   transition:
-    background .15s ease,
-    transform .15s ease;
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .photo-arrow:hover {
   background: rgba(0, 0, 0, 0.85);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .photo-prev {
-  left: 10px;
+  left: 8px;
 }
 
 .photo-next {
-  right: 10px;
+  right: 8px;
 }
 
 .photo-dots {
   position: absolute;
 
-  bottom: 10px;
+  bottom: 8px;
   left: 50%;
 
   transform: translateX(-50%);
 
   display: flex;
-  gap: 5px;
+  gap: 4px;
 
-  padding: 5px 7px;
+  padding: 4px 6px;
 
   border-radius: 999px;
 
@@ -989,59 +1151,62 @@ main {
 }
 
 .photo-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 
   border-radius: 50%;
 
-  background: rgba(255,255,255,0.45);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .photo-dot.active {
-  background: white;
+  background: #fff;
 }
 
 .photo-count {
   position: absolute;
 
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
 
-  padding: 4px 8px;
+  padding: 2px 7px;
 
   border-radius: 999px;
 
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.6);
 
   color: white;
 
-  font-size: 11px;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
 
   z-index: 2;
 }
 
 .media-info {
-  padding: 13px 14px 15px;
+  padding: 12px 14px 14px;
 }
 
 .media-type {
-  color: #25f4ee;
+  color: var(--accent);
 
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
 
-  letter-spacing: 1px;
+  letter-spacing: 0.06em;
 }
 
 .photo-type {
-  color: #fe2c55;
+  color: #f472b6;
 }
 
 .media-title {
-  margin-top: 7px;
+  margin-top: 6px;
 
   font-size: 13px;
+  font-weight: 500;
 
   white-space: nowrap;
   overflow: hidden;
@@ -1054,49 +1219,70 @@ main {
 
   gap: 8px;
 
-  margin-top: 8px;
+  margin-top: 6px;
 
-  color: #888;
+  color: var(--text-muted);
 
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 
 .media-id {
-  margin-top: 7px;
+  margin-top: 6px;
 
-  color: #555;
+  color: var(--text-subtle);
 
+  font-family: var(--font-mono);
   font-size: 10px;
 
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+/* ---------- Empty ---------- */
+
 .empty {
-  padding: 60px 20px;
+  grid-column: 1 / -1;
+
+  padding: 56px 20px;
 
   text-align: center;
 
-  color: #666;
+  color: var(--text-subtle);
 
-  border:
-    1px dashed #333;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
 
-  border-radius: 16px;
+  font-size: 13px;
 }
 
-@media (max-width: 600px) {
+/* ---------- Responsive ---------- */
 
+@media (max-width: 720px) {
   header {
-    padding: 15px;
+    padding: 0 16px;
   }
 
   main {
-    padding: 18px 14px;
+    padding: 24px 16px 48px;
   }
 
   .hero h1 {
-    font-size: 27px;
+    font-size: 20px;
+  }
+
+  .stats {
+    grid-template-columns:
+      repeat(auto-fit, minmax(130px, 1fr));
+  }
+
+  .stat {
+    padding: 13px 14px;
+  }
+
+  .stat-value {
+    font-size: 18px;
   }
 
   .grid {
@@ -1106,12 +1292,8 @@ main {
     gap: 10px;
   }
 
-  .media-card {
-    border-radius: 13px;
-  }
-
   .media-info {
-    padding: 10px;
+    padding: 10px 11px 12px;
   }
 
   .media-details {
@@ -1120,9 +1302,19 @@ main {
 
   .media-details span {
     display: block;
-    margin-top: 3px;
+    margin-top: 2px;
   }
 
+  .sort-controls {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .sort-controls select,
+  .sort-controls button {
+    padding: 6px 9px;
+    font-size: 11px;
+  }
 }
 
 </style>
@@ -1164,7 +1356,7 @@ Private personal archive
 <section class="hero">
 
 <h1>
-Archive Dashboard
+Archive
 </h1>
 
 <p>
@@ -1175,7 +1367,7 @@ Your archived TikTok posts and media.
 
 <span class="status-dot"></span>
 
-Archive storage online
+Storage online
 
 </div>
 
@@ -1186,7 +1378,7 @@ Archive storage online
 <div class="stat">
 
 <div class="stat-label">
-Archived Posts
+Posts
 </div>
 
 <div class="stat-value">
@@ -1234,7 +1426,7 @@ Individual images
 <div class="stat">
 
 <div class="stat-label">
-Total Files
+Files
 </div>
 
 <div class="stat-value">
@@ -1250,7 +1442,7 @@ Stored in R2
 <div class="stat">
 
 <div class="stat-label">
-Storage Used
+Storage
 </div>
 
 <div class="stat-value">
@@ -1266,18 +1458,18 @@ Archive media
 <div class="stat">
 
 <div class="stat-label">
-Latest Archive
+Latest
 </div>
 
 <div class="stat-value"
-     style="font-size:16px">
+     style="font-size:13px;font-family:var(--font-mono);font-weight:500">
 
 ${formatDate(latestUpload)}
 
 </div>
 
 <div class="stat-sub">
-Most recently uploaded
+Most recent upload
 </div>
 
 </div>
@@ -1285,18 +1477,18 @@ Most recently uploaded
 <div class="stat">
 
 <div class="stat-label">
-First Archive
+Oldest
 </div>
 
 <div class="stat-value"
-     style="font-size:16px">
+     style="font-size:13px;font-family:var(--font-mono);font-weight:500">
 
 ${formatDate(oldestUpload)}
 
 </div>
 
 <div class="stat-sub">
-Oldest stored media
+First stored media
 </div>
 
 </div>
@@ -1308,7 +1500,7 @@ Oldest stored media
 <div class="section-header">
 
 <h2>
-Archived Media
+Media
 </h2>
 
 <span>
